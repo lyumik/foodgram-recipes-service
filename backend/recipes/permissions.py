@@ -8,5 +8,6 @@ class IsAuthorOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return True
-        return obj.author_id == request.data.get('author_id') or \
-               request.query_params.get('author_id') == str(obj.author_id)
+        return obj.author_id == request.data.get("author_id") or request.query_params.get("author_id") == str(
+            obj.author_id
+        )

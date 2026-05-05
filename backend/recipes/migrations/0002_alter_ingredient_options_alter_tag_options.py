@@ -6,16 +6,16 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('recipes', '0001_initial'),
+        ("recipes", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='ingredient',
-            options={'ordering': ['name'], 'verbose_name': 'Ингредиент', 'verbose_name_plural': 'Ингредиенты'},
+            name="ingredient",
+            options={"ordering": ["name"], "verbose_name": "Ингредиент", "verbose_name_plural": "Ингредиенты"},
         ),
         migrations.AlterModelOptions(
-            name='tag',
-            options={'ordering': ['name'], 'verbose_name': 'Тег', 'verbose_name_plural': 'Теги'},
+            name="tag",
+            options={"ordering": ["name"], "verbose_name": "Тег", "verbose_name_plural": "Теги"},
         ),
     ]
