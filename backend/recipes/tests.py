@@ -132,6 +132,7 @@ def test_recipe_create_ingredients_saved(client, tag, ingredient):
 @pytest.mark.django_db
 def test_recipe_patch(client, recipe, tag, ingredient):
     data = {
+        'author_id': 1,
         'name': 'Яичница обновлённая',
         'text': 'Новое описание',
         'cooking_time': 7,
@@ -146,7 +147,11 @@ def test_recipe_patch(client, recipe, tag, ingredient):
 
 @pytest.mark.django_db
 def test_recipe_delete(client, recipe):
-    response = client.delete(f'/api/recipes/{recipe.id}/')
+    response = client.delete(
+        f'/api/recipes/{recipe.id}/',
+        {'author_id': 1},
+        format='json'
+    )
     assert response.status_code == 204
     assert not Recipe.objects.filter(id=recipe.id).exists()
 
@@ -218,3 +223,79 @@ def test_filter_shopping_cart(client, recipe):
     response = client.get('/api/recipes/?is_in_shopping_cart=1&user_id=1')
     assert response.status_code == 200
     assert response.data['count'] == 1
+
+
+# permissions
+
+@pytest.mark.django_db
+def test_patch_forbidden_wrong_author(client, recipe, tag, ingredient):
+    """Чужой автор не может редактировать рецепт"""
+    data = {
+        'author_id': 999,
+        'name': 'Взлом',
+        'text': 'Текст',
+        'cooking_time': 1,
+        'tags': [tag.id],
+        'ingredients': [{'id': ingredient.id, 'amount': 1}]
+    }
+    response = client.patch(f'/api/recipes/{recipe.id}/', data, format='json')
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_delete_forbidden_wrong_author(client, recipe):
+    """Чужой автор не может удалить рецепт"""
+    response = client.delete(
+        f'/api/recipes/{recipe.id}/',
+        {'author_id': 999},
+        format='json'
+    )
+    assert response.status_code == 403
+
+
+# ordering
+
+@pytest.mark.django_db
+def test_ordering_by_cooking_time(client, tag, ingredient):
+    """Сортировка по времени готовки работает"""
+    Recipe.objects.create(author_id=1, name='Быстрое', text='...', cooking_time=2)
+    Recipe.objects.create(author_id=1, name='Долгое', text='...', cooking_time=60)
+    response = client.get('/api/recipes/?ordering=cooking_time')
+    assert response.status_code == 200
+    results = response.data['results']
+    assert results[0]['cooking_time'] <= results[1]['cooking_time']
+
+
+# пагинация
+
+@pytest.mark.django_db
+def test_pagination_exists(client, recipe):
+    """Ответ содержит пагинацию"""
+    response = client.get('/api/recipes/')
+    assert 'count' in response.data
+    assert 'results' in response.data
+    assert 'next' in response.data
+
+
+# медиа
+
+@pytest.mark.django_db
+def test_recipe_image_field_exists(client, recipe):
+    """Поле image присутствует в ответе"""
+    response = client.get(f'/api/recipes/{recipe.id}/')
+    assert 'image' in response.data
+
+
+@pytest.mark.django_db
+def test_recipe_create_without_image(client, tag, ingredient):
+    """Рецепт можно создать без картинки"""
+    data = {
+        'author_id': 1,
+        'name': 'Без фото',
+        'text': 'Текст',
+        'cooking_time': 5,
+        'tags': [tag.id],
+        'ingredients': [{'id': ingredient.id, 'amount': 1}]
+    }
+    response = client.post('/api/recipes/', data, format='json')
+    assert response.status_code == 201

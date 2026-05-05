@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from .permissions import IsAuthorOrReadOnly
+from rest_framework.filters import OrderingFilter
 import io
 
 from .models import Tag, Ingredient, Recipe, ShoppingCart
@@ -27,9 +29,15 @@ class IngredientListView(generics.ListAPIView):
 
 
 class RecipeListCreateView(generics.ListCreateAPIView):
-    queryset = Recipe.objects.all()
-    filter_backends = [DjangoFilterBackend]
+    queryset = Recipe.objects.all().prefetch_related(
+        'tags',
+        'recipe_ingredients__ingredient'
+    )
+    filter_backends = [DjangoFilterBackend, OrderingFilter]  # ← добавь OrderingFilter
     filterset_class = RecipeFilter
+    permission_classes = [IsAuthorOrReadOnly]
+    ordering_fields = ['pub_date', 'cooking_time', 'name']
+    ordering = ['-pub_date']
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -43,8 +51,12 @@ class RecipeListCreateView(generics.ListCreateAPIView):
 
 
 class RecipeDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Recipe.objects.all()
+    queryset = Recipe.objects.all().prefetch_related(
+        'tags',
+        'recipe_ingredients__ingredient'
+    ).select_related()
     http_method_names = ['get', 'patch', 'delete', 'head', 'options']
+    permission_classes = [IsAuthorOrReadOnly]
 
     def get_serializer_class(self):
         if self.request.method == 'PATCH':
@@ -72,7 +84,7 @@ class ShoppingCartView(APIView):
         )
         if not created:
             return Response(
-                {'detail': 'Рецепт уже в корзине.'},
+                {'detail': 'Рецепт уже в корзине'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         serializer = ShoppingCartSerializer(item)
@@ -104,7 +116,6 @@ class ShoppingCartDownloadView(APIView):
                 key = f'{ri.ingredient.name} ({ri.ingredient.measurement_unit})'
                 ingredients_summary[key] = ingredients_summary.get(key, 0) + ri.amount
 
-        # Подключаем шрифт с кириллицей
         font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'DejaVuSans.ttf')
         pdfmetrics.registerFont(TTFont('DejaVu', font_path))
 
